@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: energia-graficas
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn energia_project.wsgi"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        sync: false          # pega aquí la connection string de Supabase desde el dashboard de Render
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"

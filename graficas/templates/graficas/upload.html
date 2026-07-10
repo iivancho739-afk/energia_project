@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Cargar Excel{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="card">
+            <div class="card-body p-4">
+                <h4 class="mb-3">Cargar archivo de energía</h4>
+                <p class="text-muted">
+                    El Excel debe tener las columnas: <code>FECHA</code>, <code>Id de Cliente</code>,
+                    <code>Tipo de Energía</code>, <code>Hora: 1</code> ... <code>Hora: 24</code> y <code>TOTAL</code>.
+                </p>
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.nombre.label }}</label>
+                        {{ form.nombre }}
+                        {% if form.nombre.errors %}
+                            <div class="text-danger small">{{ form.nombre.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.archivo.label }}</label>
+                        {{ form.archivo }}
+                        {% if form.archivo.errors %}
+                            <div class="text-danger small">{{ form.archivo.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <button type="submit" class="btn btn-primary">Cargar y generar gráficas</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

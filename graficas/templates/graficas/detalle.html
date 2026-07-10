@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ conjunto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0">{{ conjunto.nombre }}</h4>
+        <small class="text-muted">{{ conjunto.total_registros }} registros · cargado {{ conjunto.fecha_carga|date:"d/m/Y H:i" }}</small>
+    </div>
+    <a href="{% url 'graficas:lista' %}" class="btn btn-outline-secondary btn-sm">← Volver</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">1. Hora vs Energía (promedio por hora)</h5>
+        <canvas id="graficaHora" height="90"></canvas>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">2. Día vs Energía (suma diaria)</h5>
+        <canvas id="graficaDia" height="90"></canvas>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">3. Total por tipo de energía</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <canvas id="graficaTotalBarras" height="220"></canvas>
+            </div>
+            <div class="col-md-6">
+                <canvas id="graficaTotalTorta" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    const colores = {{ colores_json|safe }};
+    const horasLabels = {{ horas_labels_json|safe }};
+    const datosHora = {{ datos_hora_json|safe }};
+    const diasLabels = {{ dias_labels_json|safe }};
+    const datosDia = {{ datos_dia_json|safe }};
+    const datosTotal = {{ datos_total_json|safe }};
+    const tipos = Object.keys(datosTotal);
+
+    function datasetsPorTipo(datosPorTipo) {
+        return Object.keys(datosPorTipo).map(tipo => ({
+            label: tipo,
+            data: datosPorTipo[tipo],
+            borderColor: colores[tipo] || '#6b7280',
+            backgroundColor: colores[tipo] || '#6b7280',
+            fill: false,
+            tension: 0.25,
+        }));
+    }
+
+    // 1. Hora vs Energía (líneas, una por tipo)
+    new Chart(document.getElementById('graficaHora'), {
+        type: 'line',
+        data: { labels: horasLabels, datasets: datasetsPorTipo(datosHora) },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: { y: { beginAtZero: true } },
+        }
+    });
+
+    // 2. Día vs Energía (barras agrupadas, una serie por tipo)
+    new Chart(document.getElementById('graficaDia'), {
+        type: 'bar',
+        data: {
+            labels: diasLabels,
+            datasets: Object.keys(datosDia).map(tipo => ({
+                label: tipo,
+                data: datosDia[tipo],
+                backgroundColor: colores[tipo] || '#6b7280',
+            }))
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } },
+        }
+    });
+
+    // 3. Total por tipo — barras
+    new Chart(document.getElementById('graficaTotalBarras'), {
+        type: 'bar',
+        data: {
+            labels: tipos,
+            datasets: [{
+                label: 'Total',
+                data: tipos.map(t => datosTotal[t]),
+                backgroundColor: tipos.map(t => colores[t] || '#6b7280'),
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+
+    // 3. Total por tipo — torta (diagrama de composición)
+    new Chart(document.getElementById('graficaTotalTorta'), {
+        type: 'pie',
+        data: {
+            labels: tipos,
+            datasets: [{
+                data: tipos.map(t => datosTotal[t]),
+                backgroundColor: tipos.map(t => colores[t] || '#6b7280'),
+            }]
+        },
+        options: { responsive: true }
+    });
+</script>
+{% endblock %}

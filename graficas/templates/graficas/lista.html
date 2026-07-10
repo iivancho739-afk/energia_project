@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Conjuntos de gráficas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Conjuntos de gráficas guardados</h4>
+    <a href="{% url 'graficas:cargar' %}" class="btn btn-primary btn-sm">+ Nuevo</a>
+</div>
+
+{% if conjuntos %}
+<div class="row g-3">
+    {% for c in conjuntos %}
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ c.nombre }}</h5>
+                <p class="card-text text-muted small mb-1">Archivo: {{ c.archivo_original|default:"—" }}</p>
+                <p class="card-text text-muted small mb-1">{{ c.total_registros }} registros</p>
+                <p class="card-text text-muted small">Cargado: {{ c.fecha_carga|date:"d/m/Y H:i" }}</p>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'graficas:detalle' c.id %}" class="btn btn-outline-primary btn-sm">Ver gráficas</a>
+                    <a href="{% url 'graficas:eliminar' c.id %}" class="btn btn-outline-danger btn-sm">Eliminar</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">Aún no has cargado ningún archivo. <a href="{% url 'graficas:cargar' %}">Carga el primero</a>.</div>
+{% endif %}
+{% endblock %}
