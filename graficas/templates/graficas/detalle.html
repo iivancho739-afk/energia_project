@@ -12,14 +12,34 @@
 
 <div class="card mb-4">
     <div class="card-body">
-        <h5 class="card-title">1. Hora vs Energía (promedio por hora)</h5>
+        <h5 class="card-title">1. Hora vs Energía (acumulado por hora)</h5>
+        <div class="mb-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="resetZoom('graficaHora')">Restablecer zoom</button>
+        </div>
         <canvas id="graficaHora" height="90"></canvas>
     </div>
 </div>
 
 <div class="card mb-4">
     <div class="card-body">
-        <h5 class="card-title">2. Día vs Energía (suma diaria)</h5>
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-3">
+            <h5 class="card-title mb-0">2. Día vs Energía (suma diaria)</h5>
+            <div class="d-flex align-items-end gap-2">
+                <div>
+                    <label class="form-label mb-0 small">Desde</label>
+                    <input type="date" id="fechaDesde" class="form-control form-control-sm">
+                </div>
+                <div>
+                    <label class="form-label mb-0 small">Hasta</label>
+                    <input type="date" id="fechaHasta" class="form-control form-control-sm">
+                </div>
+                <button class="btn btn-sm btn-primary" onclick="aplicarFiltroFechas()">Filtrar</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="limpiarFiltroFechas()">Limpiar</button>
+            </div>
+        </div>
+        <div class="mb-2">
+            <button class="btn btn-sm btn-outline-secondary" onclick="resetZoom('graficaDia')">Restablecer zoom</button>
+        </div>
         <canvas id="graficaDia" height="90"></canvas>
     </div>
 </div>
@@ -27,7 +47,8 @@
 <div class="card mb-4">
     <div class="card-body">
         <h5 class="card-title">3. Total por tipo de energía</h5>
-        <div class="row">
+        <small class="text-muted" id="rangoActivo"></small>
+        <div class="row mt-2">
             <div class="col-md-6">
                 <canvas id="graficaTotalBarras" height="220"></canvas>
             </div>
@@ -41,79 +62,142 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script>
     const colores = {{ colores_json|safe }};
     const horasLabels = {{ horas_labels_json|safe }};
     const datosHora = {{ datos_hora_json|safe }};
-    const diasLabels = {{ dias_labels_json|safe }};
-    const datosDia = {{ datos_dia_json|safe }};
-    const datosTotal = {{ datos_total_json|safe }};
-    const tipos = Object.keys(datosTotal);
+    const diasLabelsOriginal = {{ dias_labels_json|safe }};
+    const datosDiaOriginal = {{ datos_dia_json|safe }};
+    const tipos = Object.keys(datosDiaOriginal);
 
-    function datasetsPorTipo(datosPorTipo) {
+    const zoomOptions = {
+        pan: { enabled: true, mode: 'x' },
+        zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            drag: { enabled: true, modifierKey: 'shift' },
+            mode: 'x',
+        }
+    };
+
+    function datasetsPorTipo(datosPorTipo, stacked) {
         return Object.keys(datosPorTipo).map(tipo => ({
             label: tipo,
             data: datosPorTipo[tipo],
             borderColor: colores[tipo] || '#6b7280',
             backgroundColor: colores[tipo] || '#6b7280',
-            fill: false,
+            fill: stacked ? true : false,
             tension: 0.25,
         }));
     }
 
-    // 1. Hora vs Energía (líneas, una por tipo)
-    new Chart(document.getElementById('graficaHora'), {
-        type: 'line',
-        data: { labels: horasLabels, datasets: datasetsPorTipo(datosHora) },
+    // 1. Hora vs Energía — barras apiladas (acumulado), con zoom
+    const chartHora = new Chart(document.getElementById('graficaHora'), {
+        type: 'bar',
+        data: { labels: horasLabels, datasets: datasetsPorTipo(datosHora, true) },
         options: {
             responsive: true,
             interaction: { mode: 'index', intersect: false },
-            scales: { y: { beginAtZero: true } },
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true },
+            },
+            plugins: { zoom: zoomOptions },
         }
     });
 
-    // 2. Día vs Energía (barras agrupadas, una serie por tipo)
-    new Chart(document.getElementById('graficaDia'), {
-        type: 'bar',
-        data: {
-            labels: diasLabels,
-            datasets: Object.keys(datosDia).map(tipo => ({
-                label: tipo,
-                data: datosDia[tipo],
-                backgroundColor: colores[tipo] || '#6b7280',
-            }))
-        },
-        options: {
-            responsive: true,
-            scales: { y: { beginAtZero: true } },
-        }
-    });
+    let chartDia, chartTotalBarras, chartTotalTorta;
 
-    // 3. Total por tipo — barras
-    new Chart(document.getElementById('graficaTotalBarras'), {
-        type: 'bar',
-        data: {
-            labels: tipos,
-            datasets: [{
-                label: 'Total',
-                data: tipos.map(t => datosTotal[t]),
-                backgroundColor: tipos.map(t => colores[t] || '#6b7280'),
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { display: false } } }
-    });
+    function renderGraficasFiltrables(diasLabels, datosDia) {
+        const datosTotal = {};
+        tipos.forEach(tipo => {
+            datosTotal[tipo] = (datosDia[tipo] || []).reduce((a, b) => a + b, 0);
+        });
 
-    // 3. Total por tipo — torta (diagrama de composición)
-    new Chart(document.getElementById('graficaTotalTorta'), {
-        type: 'pie',
-        data: {
-            labels: tipos,
-            datasets: [{
-                data: tipos.map(t => datosTotal[t]),
-                backgroundColor: tipos.map(t => colores[t] || '#6b7280'),
-            }]
-        },
-        options: { responsive: true }
-    });
+        // 2. Día vs Energía — barras agrupadas, con zoom
+        if (chartDia) chartDia.destroy();
+        chartDia = new Chart(document.getElementById('graficaDia'), {
+            type: 'bar',
+            data: {
+                labels: diasLabels,
+                datasets: tipos.map(tipo => ({
+                    label: tipo,
+                    data: datosDia[tipo],
+                    backgroundColor: colores[tipo] || '#6b7280',
+                }))
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } },
+                plugins: { zoom: zoomOptions },
+            }
+        });
+
+        // 3. Total por tipo — barras
+        if (chartTotalBarras) chartTotalBarras.destroy();
+        chartTotalBarras = new Chart(document.getElementById('graficaTotalBarras'), {
+            type: 'bar',
+            data: {
+                labels: tipos,
+                datasets: [{
+                    label: 'Total',
+                    data: tipos.map(t => datosTotal[t]),
+                    backgroundColor: tipos.map(t => colores[t] || '#6b7280'),
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // 3. Total por tipo — torta
+        if (chartTotalTorta) chartTotalTorta.destroy();
+        chartTotalTorta = new Chart(document.getElementById('graficaTotalTorta'), {
+            type: 'pie',
+            data: {
+                labels: tipos,
+                datasets: [{
+                    data: tipos.map(t => datosTotal[t]),
+                    backgroundColor: tipos.map(t => colores[t] || '#6b7280'),
+                }]
+            },
+            options: { responsive: true }
+        });
+    }
+
+    function aplicarFiltroFechas() {
+        const desde = document.getElementById('fechaDesde').value;
+        const hasta = document.getElementById('fechaHasta').value;
+
+        const indicesFiltrados = diasLabelsOriginal
+            .map((fecha, i) => ({ fecha, i }))
+            .filter(({ fecha }) => (!desde || fecha >= desde) && (!hasta || fecha <= hasta))
+            .map(({ i }) => i);
+
+        const diasLabels = indicesFiltrados.map(i => diasLabelsOriginal[i]);
+        const datosDia = {};
+        tipos.forEach(tipo => {
+            datosDia[tipo] = indicesFiltrados.map(i => datosDiaOriginal[tipo][i]);
+        });
+
+        document.getElementById('rangoActivo').textContent =
+            (desde || hasta) ? `Mostrando ${desde || 'inicio'} → ${hasta || 'fin'}` : '';
+
+        renderGraficasFiltrables(diasLabels, datosDia);
+    }
+
+    function limpiarFiltroFechas() {
+        document.getElementById('fechaDesde').value = '';
+        document.getElementById('fechaHasta').value = '';
+        document.getElementById('rangoActivo').textContent = '';
+        renderGraficasFiltrables(diasLabelsOriginal, datosDiaOriginal);
+    }
+
+    function resetZoom(canvasId) {
+        const chart = Chart.getChart(canvasId);
+        if (chart) chart.resetZoom();
+    }
+
+    // Carga inicial sin filtro
+    renderGraficasFiltrables(diasLabelsOriginal, datosDiaOriginal);
 </script>
 {% endblock %}
